@@ -31,9 +31,26 @@
 
 byte clkPin , dioPin ;
 
-int dataXY [2] = {0,0) ;
+int dataXY [2] = {0,0} ;
 int* ptrData = dataXY ;
 
+enum resolution {
+        RES_400 = 0b000,
+        RES_500 = 0b001,
+        RES_600 = 0b010,
+        RES_800 = 0b011,
+        RES_1000 = 0b100,
+        RES_1200 = 0b101,
+        RES_1600 = 0b110
+    };
+
+enum sleepMode {
+        NO_SLEEP = 0b00000 ,
+        SLEEP1   = 0b10000 ,
+        SLEEP2   = 0b11000 
+    };
+
+///////////////////////////////////////////////////////////////////////////////
 
 void mouseInit(byte clk , byte dio) {
   clkPin = clk ;
@@ -50,6 +67,8 @@ void mouseInit(byte clk , byte dio) {
   mouseWrite(OP_MODE,0xA0);       //disable sleep mode 
   mouseWrite(CONF,0x07);          //set resolution to max 1600       
 }   
+
+/////////////////////////////////////////////////////////////////////////////////
 
 // to write a value to any register 
 void mouseWrite(byte address , byte value ) {
@@ -76,7 +95,9 @@ void mouseWrite(byte address , byte value ) {
   
 }
 
-byte mouseRead(address) {
+////////////////////////////////////////////////////////////////////////////////////
+
+byte mouseRead(byte address) {
   // sending the address MSB first
   byte result = 0 ;
   
@@ -102,8 +123,9 @@ byte mouseRead(address) {
   return result ; 
 
 }
+/////////////////////////////////////////////////////////////////////////////////
 
-byte getData(){
+void getData(){
   // must first read first bit in motion status register 
   int dx =0 ,dy = 0;
 
@@ -112,18 +134,47 @@ byte getData(){
   if (MOTION_STATUS_FLAG) {
     
     byte DXOVF_FLAG = ( (mouseRead(MOTION_STATUS) & DX0VF ) ? true : false ) ;    
-    byte DYOVF_FLAG = ( (mouseRead(MOTION_STATUS) & DY0VF ) ? true : false ) ;
+    byte DYOVF_FLAG = ( (mouseRead(MOTION_STATUS) & DYOVF ) ? true : false ) ;
+
+    // if data is overflowed add 255 to the data first 
     
+    if (DXOVF_FLAG) dx = 255 ;       
+    if (DYOVF_FLAG) dy = 255 ;
+
+    // read data from mouse 
+
+    dx += mouseRead(DEL_X) ;
+    dy += mouseRead(DEL_Y) ;
+
+    // write the 2 values in the array dataXY 
+    *(ptrData++) = dx ; 
+    *(ptrData--) = dy ;
     
   }
     
-  
-  
-}
+///////////////////////////////////////////////////////////////////////////////////////
 
-byte getY(){
+// change the resolution 
+void setRes(resolution RES_VALUE)
+
+  byte CONFIGURE_REG = mouseRead(CONF) ;
+  CONFIGURE_REG |= RES_VALUE ;
+  mouseWrite(CONF,CONFIGURE_REG) ;
   
 }
+//////////////////////////////////////////////////////////////////////////////////////
+
+// to enable sleep mode
+
+void enableSleepMode(sleepMode SLEEP_MODE_TYPE){
+
+  byte OP_MODE_REG = mouseRead(OP_MODE) ;
+  OP_MODE_REG = OP_MODE_REG | 0x80 | SLEEP_MODE_TYPE ;    // enable LED shutter and also enable the sleep mode 
+  mouseWrite(OP_MODE , OP_MODE_REG) ;
+}
+/////////////////////////////////////////////////////////////////////////////////////
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600) ;
@@ -137,5 +188,9 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  getData() ;
+  Serial.print(dataXY[0]) ;
+  Serial.print("   " ) ;
+  Serial.println(dataXY[1]);
 
 }
